@@ -1,0 +1,12 @@
+[package]
+name = "control-systems"
+version = "0.1.0"
+edition = "2024"
+
+[dependencies]
+nalgebra = "0.34.0"
+num = "0.4.3"
+quadprog = "0.0.1"
+
+[lib]
+doctest = false
