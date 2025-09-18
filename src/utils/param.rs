@@ -1,7 +1,5 @@
 use std::ops::{Deref, DerefMut};
 
-use num::traits::Inv;
-
 #[derive(Clone)]
 pub struct Param<V> {
     pub value: V,
@@ -79,7 +77,6 @@ impl<V> Param<V> {
 
 impl<V, F> ParamWith<V, F>
 where
-    V: Inv<Output = V>,
     F: FnMut(V) -> V,
 {
     #[inline]
@@ -124,7 +121,6 @@ impl<V> DerefMut for Param<V> {
 
 impl<V, F> Deref for ParamWith<V, F>
 where
-    V: Inv,
     F: FnMut(V) -> V,
 {
     type Target = V;
@@ -136,7 +132,6 @@ where
 
 impl<V, F> DerefMut for ParamWith<V, F>
 where
-    V: Inv,
     F: FnMut(V) -> V,
 {
     fn deref_mut(&mut self) -> &mut Self::Target {
