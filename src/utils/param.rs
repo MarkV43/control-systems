@@ -8,12 +8,9 @@ pub struct Param<V> {
 }
 
 #[derive(Clone)]
-pub struct ParamWith<V, F>
-where
-    F: FnMut(V) -> V,
-{
+pub struct ParamWith<V> {
     param: Param<V>,
-    callback: F,
+    callback: fn(V) -> V,
     pub with: V,
 }
 
@@ -61,10 +58,9 @@ impl<V> Param<V> {
         }
     }
 
-    pub fn with<F>(self, mut callback: F) -> ParamWith<V, F>
+    pub fn with(self, callback: fn(V) -> V) -> ParamWith<V>
     where
         V: Clone,
-        F: FnMut(V) -> V,
     {
         let with = (callback)((*self).clone());
         ParamWith {
@@ -75,10 +71,7 @@ impl<V> Param<V> {
     }
 }
 
-impl<V, F> ParamWith<V, F>
-where
-    F: FnMut(V) -> V,
-{
+impl<V> ParamWith<V> {
     #[inline]
     pub fn update(&mut self, current_time: f64) -> bool
     where
@@ -119,10 +112,7 @@ impl<V> DerefMut for Param<V> {
     }
 }
 
-impl<V, F> Deref for ParamWith<V, F>
-where
-    F: FnMut(V) -> V,
-{
+impl<V> Deref for ParamWith<V> {
     type Target = V;
 
     fn deref(&self) -> &Self::Target {
@@ -130,10 +120,7 @@ where
     }
 }
 
-impl<V, F> DerefMut for ParamWith<V, F>
-where
-    F: FnMut(V) -> V,
-{
+impl<V> DerefMut for ParamWith<V> {
     fn deref_mut(&mut self) -> &mut Self::Target {
         &mut self.param
     }
