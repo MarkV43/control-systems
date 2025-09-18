@@ -1,14 +1,16 @@
-use nalgebra::{Const, OVector, Storage, Vector};
+use nalgebra::{Const, OVector, Storage};
+
+use crate::utils::VecN;
 
 use super::System;
 
 pub struct Gain<const N: usize> {
     gain: f64,
-    output: OVector<f64, Const<N>>,
+    output: VecN<N>,
 }
 
 impl<const N: usize> System<N, N> for Gain<N> {
-    fn update<S>(&mut self, _: f64, input: &Vector<f64, Const<N>, S>) -> f64
+    fn update<S>(&mut self, _: f64, input: &VecN<N, S>) -> f64
     where
         S: Storage<f64, Const<N>>,
     {
@@ -16,7 +18,7 @@ impl<const N: usize> System<N, N> for Gain<N> {
         f64::INFINITY
     }
 
-    fn get_output(&self) -> &OVector<f64, Const<N>> {
+    fn get_output(&self, _time: f64) -> &OVector<f64, Const<N>> {
         &self.output
     }
 }
@@ -53,7 +55,7 @@ mod tests {
     fn test_gain_timestep() {
         let mut sys = Gain::new(2.0);
 
-        let input = Param::new(OVector::<f64, Const<1>>::from_column_slice(&[3.]));
+        let input = Param::new(VecN::<1>::from_column_slice(&[3.]));
 
         let mut count = 0;
         sys.simulate(0.4, 0.1, input, |_| count += 1);

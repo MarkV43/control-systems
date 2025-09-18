@@ -1,6 +1,6 @@
-use nalgebra::{Const, Storage, Vector};
+use nalgebra::{Const, Storage};
 
-use crate::system::System;
+use crate::{system::System, utils::VecN};
 
 pub struct ClosedLoop<const INPUTS: usize, const OUTPUTS: usize, SysFw, SysFb>
 where
@@ -28,20 +28,20 @@ where
     SysFw: System<INPUTS, OUTPUTS>,
     SysFb: System<OUTPUTS, INPUTS>,
 {
-    fn update<S>(&mut self, time: f64, input: &Vector<f64, Const<INPUTS>, S>) -> f64
+    fn update<S>(&mut self, time: f64, input: &VecN<INPUTS, S>) -> f64
     where
         S: Storage<f64, Const<INPUTS>>,
     {
-        let error = input - self.feedback.get_output();
+        let error = input - self.feedback.get_output(time);
 
         let next1 = self.forward.update(time, &error);
-        let next2 = self.feedback.update(time, self.forward.get_output());
+        let next2 = self.feedback.update(time, self.forward.get_output(time));
 
         next1.min(next2)
     }
 
-    fn get_output(&self) -> &nalgebra::OVector<f64, nalgebra::Const<OUTPUTS>> {
-        self.forward.get_output()
+    fn get_output(&self, time: f64) -> &nalgebra::OVector<f64, nalgebra::Const<OUTPUTS>> {
+        self.forward.get_output(time)
     }
 }
 

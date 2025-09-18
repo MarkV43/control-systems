@@ -1,6 +1,6 @@
-use nalgebra::{Const, OVector, Storage, Vector};
+use nalgebra::{Const, OVector, Storage};
 
-use crate::system::System;
+use crate::{system::System, utils::VecN};
 
 /// Describes a couple of systems where the first's output is the second's input.
 ///
@@ -41,18 +41,18 @@ where
     First: System<INPUTS, MIDDLE>,
     Second: System<MIDDLE, OUTPUTS>,
 {
-    fn update<S>(&mut self, time: f64, input: &Vector<f64, Const<INPUTS>, S>) -> f64
+    fn update<S>(&mut self, time: f64, input: &VecN<INPUTS, S>) -> f64
     where
         S: Storage<f64, Const<INPUTS>>,
     {
         let next1 = self.first.update(time, input);
-        let next2 = self.second.update(time, self.first.get_output());
+        let next2 = self.second.update(time, self.first.get_output(time));
 
         next1.min(next2)
     }
 
-    fn get_output(&self) -> &OVector<f64, Const<OUTPUTS>> {
-        self.second.get_output()
+    fn get_output(&self, time: f64) -> &OVector<f64, Const<OUTPUTS>> {
+        self.second.get_output(time)
     }
 }
 
