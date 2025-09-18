@@ -17,7 +17,7 @@ pub trait ContinuousSystem<const INPUTS: usize, const STATES: usize, const OUTPU
         Ss: Storage<f64, Const<STATES>>,
         Si: Storage<f64, Const<INPUTS>>;
 
-    fn get_output(&self, time: f64) -> &VecN<OUTPUTS>;
+    fn get_output(&self, time: f64) -> VecN<OUTPUTS>;
 
     fn state(&self) -> &VecN<STATES>;
     fn state_mut(&mut self) -> &mut VecN<STATES>;
@@ -71,7 +71,7 @@ where
         time + max_dt
     }
 
-    fn get_output(&self, time: f64) -> &VecN<OUTPUTS> {
+    fn get_output(&self, time: f64) -> VecN<OUTPUTS> {
         self.system.get_output(time)
     }
 }
@@ -106,8 +106,8 @@ impl<const N: usize> ContinuousSystem<N, N, N> for PureIntegrator<N> {
         input.clone_owned()
     }
 
-    fn get_output(&self, _time: f64) -> &VecN<N> {
-        &self.output
+    fn get_output(&self, _time: f64) -> VecN<N> {
+        self.output.clone_owned()
     }
 
     fn state(&self) -> &VecN<N> {
@@ -171,7 +171,7 @@ mod tests {
         const N: usize = 4;
         let sys = PureIntegrator::<N>::new(0.2);
         assert_eq!(sys.state(), &VecN::<N>::zeros());
-        assert_eq!(sys.get_output(0.0), &VecN::<N>::zeros());
+        assert_eq!(sys.get_output(0.0), VecN::<N>::zeros());
     }
 
     #[test]
@@ -184,7 +184,7 @@ mod tests {
         }
         assert_eq!(sys.state(), &VecN::<N>::from_row_slice(&[1.5, -0.5]));
         // Output is independent from state and remains zero unless updated externally
-        assert_eq!(sys.get_output(0.0), &VecN::<N>::zeros());
+        assert_eq!(sys.get_output(0.0), VecN::<N>::zeros());
     }
 
     #[test]

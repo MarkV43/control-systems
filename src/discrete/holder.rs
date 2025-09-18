@@ -10,7 +10,7 @@ pub trait Holder<const N: usize> {
         S: Storage<f64, Const<N>>;
 
     /// Return the approximated input value at the given query time.
-    fn get_output(&self, time: f64) -> &VecN<N>;
+    fn get_output(&self, time: f64) -> VecN<N>;
 }
 
 /// Zero-Order Hold (ZOH)
@@ -37,8 +37,8 @@ impl<const N: usize> Holder<N> for ZeroOrderHold<N> {
         self.last_input.copy_from(input);
     }
 
-    fn get_output(&self, _query_time: f64) -> &VecN<N> {
-        &self.last_input
+    fn get_output(&self, _query_time: f64) -> VecN<N> {
+        self.last_input.clone_owned()
     }
 }
 
@@ -83,23 +83,23 @@ impl<const N: usize> Holder<N> for FirstOrderHold<N> {
         }
     }
 
-    fn get_output(&self, query_time: f64) -> &VecN<N> {
+    fn get_output(&self, query_time: f64) -> VecN<N> {
         // not initialized -> return current input (which is zero-initialized until hold is called)
         if !self.initialized {
-            return &self.curr_input;
+            return self.curr_input.clone_owned();
         }
 
         // degenerate interval -> return current input
         if (self.curr_time - self.last_time).abs() < f64::EPSILON {
-            return &self.curr_input;
+            return self.curr_input.clone_owned();
         }
 
         // outside interval -> clamp to endpoints
         if query_time <= self.last_time {
-            return &self.last_input;
+            return self.last_input.clone_owned();
         }
         if query_time >= self.curr_time {
-            return &self.curr_input;
+            return self.curr_input.clone_owned();
         }
 
         // interpolate into scratch buffer and return reference to it.
@@ -113,7 +113,7 @@ impl<const N: usize> Holder<N> for FirstOrderHold<N> {
             // compute via owned temporaries then copy into out to avoid per-element loops
             *out =
                 self.last_input.clone_owned() * (1.0 - tau) + self.curr_input.clone_owned() * tau;
-            &*self.output.get()
+            (*self.output.get()).clone_owned()
         }
     }
 }
@@ -144,12 +144,13 @@ impl<const N: usize> Holder<N> for ImpulseHold<N> {
         self.last_input.copy_from(input);
     }
 
-    fn get_output(&self, query_time: f64) -> &VecN<N> {
+    fn get_output(&self, query_time: f64) -> VecN<N> {
         if (query_time - self.last_time).abs() < f64::EPSILON {
-            &self.last_input
+            self.last_input
         } else {
-            &self.zero
+            self.zero
         }
+        .clone_owned()
     }
 }
 
@@ -164,15 +165,15 @@ mod tests {
         let mut zoh = ZeroOrderHold::<N>::new();
 
         // before any hold call -> zeros
-        assert_eq!(zoh.get_output(0.0), &VecN::<N>::zeros());
+        assert_eq!(zoh.get_output(0.0), VecN::<N>::zeros());
 
         let sample = VecN::<N>::from_row_slice(&[1.0, -2.0, 3.5]);
         zoh.hold(1.0, &sample);
 
         // at and after sample time -> same sample
-        assert_eq!(zoh.get_output(1.0), &sample);
-        assert_eq!(zoh.get_output(1.5), &sample);
-        assert_eq!(zoh.get_output(0.9), &sample); // ZOH returns last_input regardless of query_time
+        assert_eq!(zoh.get_output(1.0), sample);
+        assert_eq!(zoh.get_output(1.5), sample);
+        assert_eq!(zoh.get_output(0.9), sample); // ZOH returns last_input regardless of query_time
     }
 
     #[test]
@@ -181,7 +182,7 @@ mod tests {
         let mut foh = FirstOrderHold::<N>::new();
 
         // initially uninitialized -> returns zero curr_input
-        assert_eq!(foh.get_output(0.0), &VecN::<N>::zeros());
+        assert_eq!(foh.get_output(0.0), VecN::<N>::zeros());
 
         // first sample (initializes)
         let s0 = VecN::<N>::from_row_slice(&[0.0, 0.0]);
@@ -193,13 +194,13 @@ mod tests {
 
         // midpoint should be average -> [1.0, 2.0]
         let mid_expected = VecN::<N>::from_row_slice(&[1.0, 2.0]);
-        assert_eq!(foh.get_output(0.5), &mid_expected);
+        assert_eq!(foh.get_output(0.5), mid_expected);
 
         // clamp to endpoints
-        assert_eq!(foh.get_output(0.0), &s0);
-        assert_eq!(foh.get_output(1.0), &s1);
-        assert_eq!(foh.get_output(-1.0), &s0);
-        assert_eq!(foh.get_output(2.0), &s1);
+        assert_eq!(foh.get_output(0.0), s0);
+        assert_eq!(foh.get_output(1.0), s1);
+        assert_eq!(foh.get_output(-1.0), s0);
+        assert_eq!(foh.get_output(2.0), s1);
     }
 
     #[test]
@@ -211,11 +212,11 @@ mod tests {
         ih.hold(2.0, &sample);
 
         // exactly at sample time -> sample
-        assert_eq!(ih.get_output(2.0), &sample);
+        assert_eq!(ih.get_output(2.0), sample);
 
         // slightly off -> zero
         let eps = 1e-12;
-        assert_eq!(ih.get_output(2.0 + eps), &VecN::<N>::zeros());
-        assert_eq!(ih.get_output(1.999999999999), &VecN::<N>::zeros());
+        assert_eq!(ih.get_output(2.0 + eps), VecN::<N>::zeros());
+        assert_eq!(ih.get_output(1.999999999999), VecN::<N>::zeros());
     }
 }

@@ -70,7 +70,7 @@ where
         self.last_time + 2.0 * dt
     }
 
-    fn get_output(&self, time: f64) -> &VecN<OUTPUTS> {
+    fn get_output(&self, time: f64) -> VecN<OUTPUTS> {
         self.holder.get_output(time)
     }
 }
@@ -146,7 +146,7 @@ mod tests {
         assert_eq!(held.system.state(), &VecN::<N>::zeros());
 
         // holder output must still be zeros
-        assert_eq!(held.get_output(0.1), &VecN::<N>::zeros());
+        assert_eq!(held.get_output(0.1), VecN::<N>::zeros());
     }
 
     #[test]
@@ -167,7 +167,7 @@ mod tests {
         assert_eq!(held.system.state(), &input);
 
         // holder should have stored the system output (which equals the new state)
-        assert_eq!(held.get_output(0.1), &input);
+        assert_eq!(held.get_output(0.1), input);
     }
 
     #[test]
@@ -195,11 +195,11 @@ mod tests {
 
         // midpoint interpolation
         let mid_expected = VecN::<N>::from_row_slice(&[1.0, 2.0]);
-        assert_eq!(foh.get_output(0.5), &mid_expected);
+        assert_eq!(foh.get_output(0.5), mid_expected);
 
         // clamping outside interval
-        assert_eq!(foh.get_output(-1.0), &s0);
-        assert_eq!(foh.get_output(2.0), &s1);
+        assert_eq!(foh.get_output(-1.0), s0);
+        assert_eq!(foh.get_output(2.0), s1);
     }
 
     #[test]
@@ -209,7 +209,7 @@ mod tests {
         let sample = VecN::<N>::from_row_slice(&[3.0]);
 
         ih.hold(2.0, &sample);
-        assert_eq!(ih.get_output(2.0), &sample);
-        assert_eq!(ih.get_output(2.0 + 1e-12), &VecN::<N>::zeros());
+        assert_eq!(ih.get_output(2.0), sample);
+        assert_eq!(ih.get_output(2.0 + 1e-12), VecN::<N>::zeros());
     }
 }

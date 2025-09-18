@@ -1,4 +1,4 @@
-use nalgebra::{Const, OVector, Storage};
+use nalgebra::{Const, Storage};
 
 use crate::{system::System, utils::VecN};
 
@@ -46,12 +46,12 @@ where
         S: Storage<f64, Const<INPUTS>>,
     {
         let next1 = self.first.update(time, input);
-        let next2 = self.second.update(time, self.first.get_output(time));
+        let next2 = self.second.update(time, &self.first.get_output(time));
 
         next1.min(next2)
     }
 
-    fn get_output(&self, time: f64) -> &OVector<f64, Const<OUTPUTS>> {
+    fn get_output(&self, time: f64) -> VecN<OUTPUTS> {
         self.second.get_output(time)
     }
 }

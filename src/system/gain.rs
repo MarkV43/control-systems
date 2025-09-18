@@ -18,8 +18,8 @@ impl<const N: usize> System<N, N> for Gain<N> {
         f64::INFINITY
     }
 
-    fn get_output(&self, _time: f64) -> &OVector<f64, Const<N>> {
-        &self.output
+    fn get_output(&self, _time: f64) -> VecN<N> {
+        self.output.clone_owned()
     }
 }
 

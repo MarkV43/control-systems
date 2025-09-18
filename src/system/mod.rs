@@ -25,7 +25,7 @@ pub trait System<const INPUTS: usize, const OUTPUTS: usize> {
         S: Storage<f64, Const<INPUTS>>;
 
     /// Returns the system's current output. Should be called after `update`ing the system.
-    fn get_output(&self, time: f64) -> &VecN<OUTPUTS>;
+    fn get_output(&self, time: f64) -> VecN<OUTPUTS>;
 
     /// Simulates the system for a full `total_time` time units.
     fn simulate<F>(
@@ -76,8 +76,8 @@ impl<const N: usize> System<N, N> for UnitSystem<N> {
         f64::INFINITY
     }
 
-    fn get_output(&self, _time: f64) -> &VecN<N> {
-        &self.output
+    fn get_output(&self, _time: f64) -> VecN<N> {
+        self.output.clone_owned()
     }
 }
 

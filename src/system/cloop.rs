@@ -35,12 +35,12 @@ where
         let error = input - self.feedback.get_output(time);
 
         let next1 = self.forward.update(time, &error);
-        let next2 = self.feedback.update(time, self.forward.get_output(time));
+        let next2 = self.feedback.update(time, &self.forward.get_output(time));
 
         next1.min(next2)
     }
 
-    fn get_output(&self, time: f64) -> &nalgebra::OVector<f64, nalgebra::Const<OUTPUTS>> {
+    fn get_output(&self, time: f64) -> VecN<OUTPUTS> {
         self.forward.get_output(time)
     }
 }
