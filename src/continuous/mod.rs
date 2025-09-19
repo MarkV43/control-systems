@@ -13,7 +13,7 @@ pub trait ContinuousSystem<Input, State, Output> {
     fn get_output(&self, time: f64) -> Output;
 
     fn state(&self) -> &State;
-    fn state_mut(&mut self) -> &mut State;
+    fn set_state(&mut self, new_state: &State);
 
     fn max_timestep(&self) -> f64;
 
@@ -97,8 +97,8 @@ where
         &self.state
     }
 
-    fn state_mut(&mut self) -> &mut Data {
-        &mut self.state
+    fn set_state(&mut self, new_state: &Data) {
+        self.state = new_state.clone();
     }
 
     fn max_timestep(&self) -> f64 {
@@ -142,7 +142,7 @@ impl<Int, Data> DerefMut for PureIntegratorSystem<Int, Data> {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use nalgebra::{Const, Owned, Vector};
+    use nalgebra::{vector, Const, Owned, Vector};
 
     pub type VecN<const N: usize, S = Owned<f64, Const<N>, Const<1>>> = Vector<f64, Const<N>, S>;
 
@@ -168,11 +168,10 @@ mod tests {
     fn test_pure_integrator_state_mutation_reflects_in_state() {
         const N: usize = 2;
         let mut sys = PureIntegrator::<VecN<N>>::new(0.05);
-        {
-            let s = sys.state_mut();
-            s.copy_from(&VecN::<N>::from_row_slice(&[1.5, -0.5]));
-        }
-        assert_eq!(sys.state(), &VecN::<N>::from_row_slice(&[1.5, -0.5]));
+        
+        sys.set_state(&vector![1.5, -0.5]);
+
+        assert_eq!(sys.state(), &vector![1.5, -0.5]);
         // Output is independent from state and remains zero unless updated externally
         assert_eq!(sys.get_output(0.0), VecN::<N>::zeros());
     }

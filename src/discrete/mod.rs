@@ -15,7 +15,7 @@ pub trait DiscreteSystem<Input, State, Output> {
     fn get_output(&self) -> Output;
 
     fn state(&self) -> &State;
-    fn state_mut(&mut self) -> &mut State;
+    fn set_state(&mut self, new_state: &State);
 
     fn timestep(&self) -> f64;
 
@@ -60,7 +60,7 @@ where
             "Requested event was not triggered"
         );
 
-        *self.system.state_mut() = self.system.next_state(time, self.system.state(), input);
+        self.system.set_state(&self.system.next_state(time, self.system.state(), input));
         self.holder.hold(time, &self.system.get_output());
 
         self.last_time + 2.0 * dt
@@ -115,8 +115,8 @@ mod tests {
             &self.state
         }
 
-        fn state_mut(&mut self) -> &mut VecN<N> {
-            &mut self.state
+        fn set_state(&mut self, new_state: &VecN<N>) {
+            self.state.copy_from(new_state);
         }
 
         fn timestep(&self) -> f64 {

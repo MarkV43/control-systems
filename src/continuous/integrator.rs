@@ -19,7 +19,7 @@ where
         let state = sys.state();
         let der = sys.get_derivative(t, state, input);
 
-        *sys.state_mut() = der * dt + state;
+        sys.set_state(&(der * dt + state));
     }
 }
 
@@ -38,7 +38,7 @@ where
         let state = sys.state();
         let der = sys.get_derivative(t, state, input);
 
-        *sys.state_mut() = (der.clone() + &self.previous_derivative) * dt * 0.5;
+        sys.set_state(&((der.clone() + &self.previous_derivative) * dt * 0.5));
         self.previous_derivative = der;
     }
 }
@@ -62,6 +62,6 @@ where
         let k2 = sys.get_derivative(t + h2, &(&k1 * h2 + state), input);
         let k3 = sys.get_derivative(t + h2, &(&k2 * h2 + state), input);
         let k4 = sys.get_derivative(t + dt, &(&k3 * dt + state), input);
-        *sys.state_mut() = (k1 + k2 * 2.0 + k3 * 2.0 + k4) * (dt / 6.0) + state;
+        sys.set_state(&((k1 + k2 * 2.0 + k3 * 2.0 + k4) * (dt / 6.0) + state));
     }
 }
