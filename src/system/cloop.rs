@@ -4,8 +4,8 @@ use crate::{system::System};
 
 pub struct ClosedLoop<Input, Output, SysFw, SysFb>
 where
-    SysFw: System<Input, Output>,
-    SysFb: System<Output, Input>,
+    SysFw: System<Input = Input, Output = Output>,
+    SysFb: System<Input = Output, Output = Input>,
 {
     forward: SysFw,
     feedback: SysFb,
@@ -14,8 +14,8 @@ where
 
 impl<Input, Output, SysFw, SysFb> ClosedLoop<Input, Output, SysFw, SysFb>
 where
-    SysFw: System<Input, Output>,
-    SysFb: System<Output, Input>,
+    SysFw: System<Input = Input, Output = Output>,
+    SysFb: System<Input = Output, Output = Input>,
 {
     pub fn new(forward: SysFw, feedback: SysFb) -> Self {
         Self {
@@ -26,12 +26,15 @@ where
     }
 }
 
-impl<Input, Output, SysFw, SysFb> System<Input, Output> for ClosedLoop<Input, Output, SysFw, SysFb>
+impl<Input, Output, SysFw, SysFb> System for ClosedLoop<Input, Output, SysFw, SysFb>
 where
-    SysFw: System<Input, Output>,
-    SysFb: System<Output, Input>,
+    SysFw: System<Input = Input, Output = Output>,
+    SysFb: System<Input = Output, Output = Input>,
     for<'a> &'a Input: Sub<Input, Output = Input>,
 {
+    type Input = Input;
+    type Output = Output;
+
     fn update(&mut self, time: f64, input: &Input) -> f64 {
         let error = input - self.feedback.get_output(time);
 

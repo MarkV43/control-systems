@@ -15,25 +15,28 @@ use crate::utils::Param;
 ///
 /// This way, slower system will be updated less often, while faster systems can
 /// have different frequencies, and still work without issue.
-pub trait System<Input, Output> {
+pub trait System {
+    type Input;
+    type Output;
+
     /// Updates the system as if it were on instant `time` receiving inputs `input`.
     /// Returns the next instant the system will be updated at.
-    fn update(&mut self, time: f64, input: &Input) -> f64;
+    fn update(&mut self, time: f64, input: &Self::Input) -> f64;
 
     /// Returns the system's current output. Should be called after `update`ing the system.
-    fn get_output(&self, time: f64) -> Output;
+    fn get_output(&self, time: f64) -> Self::Output;
 
     /// Simulates the system for a full `total_time` time units.
     fn simulate<F>(
         &mut self,
         total_time: f64,
         max_timestep: f64,
-        mut input: Param<Input>,
+        mut input: Param<Self::Input>,
         mut callback: F,
     ) where
-        F: FnMut(Sample<Input, Output>) -> (),
-        Input: Clone,
-        Output: Clone,
+        F: FnMut(Sample<Self::Input, Self::Output>) -> (),
+        Self::Input: Clone,
+        Self::Output: Clone,
     {
         let mut time = 0.0;
 
@@ -65,8 +68,13 @@ pub struct UnitSystem<Data> {
     output: Data,
 }
 
-impl<Data> System<Data, Data> for UnitSystem<Data> 
-where Data: Clone {
+impl<Data> System for UnitSystem<Data>
+where
+    Data: Clone,
+{
+    type Input = Data;
+    type Output = Data;
+    
     fn update(&mut self, _: f64, input: &Data) -> f64 {
         self.output = input.clone();
         f64::INFINITY
@@ -77,7 +85,10 @@ where Data: Clone {
     }
 }
 
-impl<Data> Default for UnitSystem<Data> where Data: Default {
+impl<Data> Default for UnitSystem<Data>
+where
+    Data: Default,
+{
     fn default() -> Self {
         Self {
             output: Data::default(),

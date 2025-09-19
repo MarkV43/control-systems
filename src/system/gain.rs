@@ -7,11 +7,14 @@ pub struct Gain<Data> {
     output: Data,
 }
 
-impl<Data> System<Data, Data> for Gain<Data>
+impl<Data> System for Gain<Data>
 where
     Data: Clone,
     for<'a> &'a Data: Mul<f64, Output = Data>,
 {
+    type Input = Data;
+    type Output = Data;
+
     fn update(&mut self, _: f64, input: &Data) -> f64
     where
         Data: Clone,

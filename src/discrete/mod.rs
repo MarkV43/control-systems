@@ -41,11 +41,14 @@ pub struct HeldSystem<Sys, Hol, Input, State, Output> {
 }
 
 impl<Sys, Hol, Input, State, Output>
-    System<Input, Output> for HeldSystem<Sys, Hol, Input, State, Output>
+    System for HeldSystem<Sys, Hol, Input, State, Output>
 where
     Sys: DiscreteSystem<Input, State, Output>,
     Hol: Holder<Output>,
 {
+    type Input = Input;
+    type Output = Output;
+
     fn update(&mut self, time: f64, input: &Input) -> f64 {
         let req_dt = self.system.timestep();
         let dt = time - self.last_time;

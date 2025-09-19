@@ -12,8 +12,8 @@ use crate::system::System;
 ///
 pub struct SeriesSystem<Input, Middle, Output, First, Second>
 where
-    First: System<Input, Middle>,
-    Second: System<Middle, Output>,
+    First: System<Input = Input, Output = Middle>,
+    Second: System<Input = Middle, Output = Output>,
 {
     first: First,
     second: Second,
@@ -22,8 +22,8 @@ where
 
 impl<Input, Middle, Output, First, Second> SeriesSystem<Input, Middle, Output, First, Second>
 where
-    First: System<Input, Middle>,
-    Second: System<Middle, Output>,
+    First: System<Input = Input, Output = Middle>,
+    Second: System<Input = Middle, Output = Output>,
 {
     pub fn new(first: First, second: Second) -> Self {
         Self {
@@ -34,20 +34,23 @@ where
     }
 }
 
-impl<Input, Middle, Output, First, Second> System<Input, Output>
+impl<Input, Middle, Output, First, Second> System
     for SeriesSystem<Input, Middle, Output, First, Second>
 where
-    First: System<Input, Middle>,
-    Second: System<Middle, Output>,
+    First: System<Input = Input, Output = Middle>,
+    Second: System<Input = Middle, Output = Output>,
 {
-    fn update(&mut self, time: f64, input: &Input) -> f64 {
+    type Input = Input;
+    type Output = Output;
+
+    fn update(&mut self, time: f64, input: &Self::Input) -> f64 {
         let next1 = self.first.update(time, input);
         let next2 = self.second.update(time, &self.first.get_output(time));
 
         next1.min(next2)
     }
 
-    fn get_output(&self, time: f64) -> Output {
+    fn get_output(&self, time: f64) -> Self::Output {
         self.second.get_output(time)
     }
 }

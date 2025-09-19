@@ -41,12 +41,14 @@ pub struct IntegratedSystem<Sys, Int, Input, State, Output> {
     _dummy: PhantomData<(Input, State, Output)>,
 }
 
-impl<Sys, Int, Input, State, Output> System<Input, Output>
-    for IntegratedSystem<Sys, Int, Input, State, Output>
+impl<Sys, Int, Input, State, Output> System for IntegratedSystem<Sys, Int, Input, State, Output>
 where
     Sys: ContinuousSystem<Input, State, Output>,
     Int: Integrator<Sys, Input, State, Output>,
 {
+    type Input = Input;
+    type Output = Output;
+
     fn update(&mut self, time: f64, input: &Input) -> f64 {
         let max_dt = self.system.max_timestep();
         let dt = time - self.last_time;
@@ -142,7 +144,7 @@ impl<Int, Data> DerefMut for PureIntegratorSystem<Int, Data> {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use nalgebra::{vector, Const, Owned, Vector};
+    use nalgebra::{Const, Owned, Vector, vector};
 
     pub type VecN<const N: usize, S = Owned<f64, Const<N>, Const<1>>> = Vector<f64, Const<N>, S>;
 
@@ -168,7 +170,7 @@ mod tests {
     fn test_pure_integrator_state_mutation_reflects_in_state() {
         const N: usize = 2;
         let mut sys = PureIntegrator::<VecN<N>>::new(0.05);
-        
+
         sys.set_state(&vector![1.5, -0.5]);
 
         assert_eq!(sys.state(), &vector![1.5, -0.5]);
