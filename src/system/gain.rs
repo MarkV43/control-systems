@@ -1,33 +1,38 @@
-use nalgebra::{Const, OVector, Storage};
-
-use crate::utils::VecN;
+use std::ops::Mul;
 
 use super::System;
 
-pub struct Gain<const N: usize> {
+pub struct Gain<Data> {
     gain: f64,
-    output: VecN<N>,
+    output: Data,
 }
 
-impl<const N: usize> System<N, N> for Gain<N> {
-    fn update<S>(&mut self, _: f64, input: &VecN<N, S>) -> f64
+impl<Data> System<Data, Data> for Gain<Data>
+where
+    Data: Clone,
+    for<'a> &'a Data: Mul<f64, Output = Data>,
+{
+    fn update(&mut self, _: f64, input: &Data) -> f64
     where
-        S: Storage<f64, Const<N>>,
+        Data: Clone,
     {
-        self.output.copy_from(&(self.gain * input));
+        self.output = input * self.gain;
         f64::INFINITY
     }
 
-    fn get_output(&self, _time: f64) -> VecN<N> {
-        self.output.clone_owned()
+    fn get_output(&self, _time: f64) -> Data {
+        self.output.clone()
     }
 }
 
-impl<const N: usize> Gain<N> {
-    pub fn new(gain: f64) -> Self {
+impl<Data> Gain<Data> {
+    pub fn new(gain: f64) -> Self
+    where
+        Data: Default,
+    {
         Self {
             gain,
-            output: OVector::zeros_generic(Const, Const),
+            output: Data::default(),
         }
     }
 }
@@ -36,11 +41,13 @@ impl<const N: usize> Gain<N> {
 mod tests {
     use super::*;
     use crate::utils::Param;
-    use nalgebra::vector;
+    use nalgebra::{vector, Const, Owned, Vector};
+    
+    pub type VecN<const N: usize, S = Owned<f64, Const<N>, Const<1>>> = Vector<f64, Const<N>, S>;
 
     #[test]
     fn test_gain() {
-        let mut sys = Gain::new(2.0);
+        let mut sys = Gain::<VecN<1>>::new(2.0);
 
         assert_eq!(sys.output[0], 0.0);
         sys.update(0.1, &vector![3.]);
@@ -53,7 +60,7 @@ mod tests {
 
     #[test]
     fn test_gain_timestep() {
-        let mut sys = Gain::new(2.0);
+        let mut sys = Gain::<VecN<1>>::new(2.0);
 
         let input = Param::new(VecN::<1>::from_column_slice(&[3.]));
 

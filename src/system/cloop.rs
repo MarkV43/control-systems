@@ -1,37 +1,38 @@
-use nalgebra::{Const, Storage};
+use std::{marker::PhantomData, ops::Sub};
 
-use crate::{system::System, utils::VecN};
+use crate::{system::System};
 
-pub struct ClosedLoop<const INPUTS: usize, const OUTPUTS: usize, SysFw, SysFb>
+pub struct ClosedLoop<Input, Output, SysFw, SysFb>
 where
-    SysFw: System<INPUTS, OUTPUTS>,
-    SysFb: System<OUTPUTS, INPUTS>,
+    SysFw: System<Input, Output>,
+    SysFb: System<Output, Input>,
 {
     forward: SysFw,
     feedback: SysFb,
+    _dummy: PhantomData<(Input, Output)>,
 }
 
-impl<const INPUTS: usize, const OUTPUTS: usize, SysFw, SysFb>
-    ClosedLoop<INPUTS, OUTPUTS, SysFw, SysFb>
+impl<Input, Output, SysFw, SysFb> ClosedLoop<Input, Output, SysFw, SysFb>
 where
-    SysFw: System<INPUTS, OUTPUTS>,
-    SysFb: System<OUTPUTS, INPUTS>,
+    SysFw: System<Input, Output>,
+    SysFb: System<Output, Input>,
 {
     pub fn new(forward: SysFw, feedback: SysFb) -> Self {
-        Self { forward, feedback }
+        Self {
+            forward,
+            feedback,
+            _dummy: PhantomData,
+        }
     }
 }
 
-impl<const INPUTS: usize, const OUTPUTS: usize, SysFw, SysFb> System<INPUTS, OUTPUTS>
-    for ClosedLoop<INPUTS, OUTPUTS, SysFw, SysFb>
+impl<Input, Output, SysFw, SysFb> System<Input, Output> for ClosedLoop<Input, Output, SysFw, SysFb>
 where
-    SysFw: System<INPUTS, OUTPUTS>,
-    SysFb: System<OUTPUTS, INPUTS>,
+    SysFw: System<Input, Output>,
+    SysFb: System<Output, Input>,
+    for<'a> &'a Input: Sub<Input, Output = Input>,
 {
-    fn update<S>(&mut self, time: f64, input: &VecN<INPUTS, S>) -> f64
-    where
-        S: Storage<f64, Const<INPUTS>>,
-    {
+    fn update(&mut self, time: f64, input: &Input) -> f64 {
         let error = input - self.feedback.get_output(time);
 
         let next1 = self.forward.update(time, &error);
@@ -40,22 +41,22 @@ where
         next1.min(next2)
     }
 
-    fn get_output(&self, time: f64) -> VecN<OUTPUTS> {
+    fn get_output(&self, time: f64) -> Output {
         self.forward.get_output(time)
     }
 }
 
 #[cfg(test)]
 mod tests {
-    use nalgebra::vector;
-
     use crate::{prelude::Gain, system::UnitSystem, utils::Param};
-
     use super::*;
+    use nalgebra::{vector, Const, Owned, Vector};
+    
+    pub type VecN<const N: usize, S = Owned<f64, Const<N>, Const<1>>> = Vector<f64, Const<N>, S>;
 
     #[test]
     fn test_cloop() {
-        let fw = Gain::<1>::new(0.5);
+        let fw = Gain::<VecN<1>>::new(0.5);
         let fb = UnitSystem::default();
 
         let mut cloop = ClosedLoop::new(fw, fb);

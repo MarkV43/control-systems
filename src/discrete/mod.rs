@@ -1,56 +1,52 @@
-use nalgebra::{Const, Storage};
+use std::marker::PhantomData;
 
-use crate::{discrete::holder::Holder, system::System, utils::VecN};
+use crate::{discrete::holder::Holder, system::System};
 
 pub mod holder;
 
-pub trait DiscreteSystem<const INPUTS: usize, const STATES: usize, const OUTPUTS: usize> {
-    fn next_state<Ss, Si>(
+pub trait DiscreteSystem<Input, State, Output> {
+    fn next_state(
         &self,
         time: f64,
-        state: &VecN<STATES, Ss>,
-        input: &VecN<INPUTS, Si>,
-    ) -> VecN<STATES>
-    where
-        Ss: Storage<f64, Const<STATES>>,
-        Si: Storage<f64, Const<INPUTS>>;
+        state: &State,
+        input: &Input,
+    ) -> State;
 
-    fn get_output(&self) -> &VecN<OUTPUTS>;
+    fn get_output(&self) -> Output;
 
-    fn state(&self) -> &VecN<STATES>;
-    fn state_mut(&mut self) -> &mut VecN<STATES>;
+    fn state(&self) -> &State;
+    fn state_mut(&mut self) -> &mut State;
 
     fn timestep(&self) -> f64;
 
-    fn with_holder<Hol>(self, holder: Hol) -> HeldSystem<Self, Hol, INPUTS, STATES, OUTPUTS>
+    fn with_holder<Hol>(self, holder: Hol) -> HeldSystem<Self, Hol, Input, State, Output>
     where
         Self: Sized,
-        Hol: Holder<OUTPUTS>,
+        Hol: Holder<Output>,
     {
         HeldSystem {
             system: self,
             holder,
             last_time: 0.0,
+            _dummy: PhantomData
         }
     }
 }
 
-pub struct HeldSystem<Sys, Hol, const INPUTS: usize, const STATES: usize, const OUTPUTS: usize> {
+pub struct HeldSystem<Sys, Hol, Input, State, Output> {
     system: Sys,
     holder: Hol,
     last_time: f64,
+    _dummy: PhantomData<(Input, State, Output)>
 }
 
-impl<Sys, Hol, const INPUTS: usize, const STATES: usize, const OUTPUTS: usize>
-    System<INPUTS, OUTPUTS> for HeldSystem<Sys, Hol, INPUTS, STATES, OUTPUTS>
+impl<Sys, Hol, Input, State, Output>
+    System<Input, Output> for HeldSystem<Sys, Hol, Input, State, Output>
 where
-    Sys: DiscreteSystem<INPUTS, STATES, OUTPUTS>,
-    Hol: Holder<OUTPUTS>,
+    Sys: DiscreteSystem<Input, State, Output>,
+    Hol: Holder<Output>,
 {
-    fn update<S>(&mut self, time: f64, input: &VecN<INPUTS, S>) -> f64
-    where
-        S: Storage<f64, Const<INPUTS>>,
-    {
+    fn update(&mut self, time: f64, input: &Input) -> f64 {
         let req_dt = self.system.timestep();
         let dt = time - self.last_time;
 
@@ -65,12 +61,12 @@ where
         );
 
         *self.system.state_mut() = self.system.next_state(time, self.system.state(), input);
-        self.holder.hold(time, self.system.get_output());
+        self.holder.hold(time, &self.system.get_output());
 
         self.last_time + 2.0 * dt
     }
 
-    fn get_output(&self, time: f64) -> VecN<OUTPUTS> {
+    fn get_output(&self, time: f64) -> Output {
         self.holder.get_output(time)
     }
 }
@@ -79,7 +75,9 @@ where
 mod tests {
     use super::*;
     use crate::discrete::holder::{FirstOrderHold, ImpulseHold, ZeroOrderHold};
-    use crate::utils::VecN;
+    use nalgebra::{Const, Owned, Vector};
+
+    pub type VecN<const N: usize, S = Owned<f64, Const<N>, Const<1>>> = Vector<f64, Const<N>, S>;
 
     // A minimal discrete system for tests:
     // - STATES = OUTPUTS = INPUTS = N
@@ -99,22 +97,18 @@ mod tests {
         }
     }
 
-    impl<const N: usize> DiscreteSystem<N, N, N> for MockDiscrete<N> {
-        fn next_state<Ss, Si>(
+    impl<const N: usize> DiscreteSystem<VecN<N>, VecN<N>, VecN<N>> for MockDiscrete<N> {
+        fn next_state(
             &self,
             _time: f64,
-            state: &VecN<N, Ss>,
-            input: &VecN<N, Si>,
-        ) -> VecN<N>
-        where
-            Ss: Storage<f64, Const<N>>,
-            Si: Storage<f64, Const<N>>,
-        {
+            state: &VecN<N>,
+            input: &VecN<N>,
+        ) -> VecN<N> {
             state.clone_owned() + input.clone_owned()
         }
 
-        fn get_output(&self) -> &VecN<N> {
-            &self.state
+        fn get_output(&self) -> VecN<N> {
+            self.state.clone_owned()
         }
 
         fn state(&self) -> &VecN<N> {
@@ -134,7 +128,7 @@ mod tests {
     fn heldsystem_no_trigger_returns_last_time_plus_dt_and_does_not_update() {
         const N: usize = 1;
         let sys = MockDiscrete::<N>::new(0.2);
-        let mut held = sys.with_holder(ZeroOrderHold::<N>::new());
+        let mut held = sys.with_holder(ZeroOrderHold::<VecN<N>>::new());
 
         let input = VecN::<N>::from_row_slice(&[1.0]);
 
@@ -153,7 +147,7 @@ mod tests {
     fn heldsystem_trigger_updates_state_and_holder_zoh() {
         const N: usize = 2;
         let sys = MockDiscrete::<N>::new(0.1);
-        let mut held = sys.with_holder(ZeroOrderHold::<N>::new());
+        let mut held = sys.with_holder(ZeroOrderHold::<VecN<N>>::new());
 
         let input = VecN::<N>::from_row_slice(&[0.5, -0.5]);
 
@@ -175,7 +169,7 @@ mod tests {
     fn heldsystem_asserts_when_dt_not_close_to_req_dt() {
         const N: usize = 1;
         let sys = MockDiscrete::<N>::new(0.1);
-        let mut held = sys.with_holder(ZeroOrderHold::<N>::new());
+        let mut held = sys.with_holder(ZeroOrderHold::<VecN<N>>::new());
         let input = VecN::<N>::from_row_slice(&[1.0]);
 
         // dt = 0.25, req_dt = 0.1 -> assertion should fire
@@ -185,7 +179,7 @@ mod tests {
     #[test]
     fn first_order_hold_interpolates_between_two_samples() {
         const N: usize = 2;
-        let mut foh = FirstOrderHold::<N>::new();
+        let mut foh = FirstOrderHold::<VecN<N>>::new();
 
         let s0 = VecN::<N>::from_row_slice(&[0.0, 0.0]);
         let s1 = VecN::<N>::from_row_slice(&[2.0, 4.0]);
@@ -205,7 +199,7 @@ mod tests {
     #[test]
     fn impulse_hold_only_returns_at_instant() {
         const N: usize = 1;
-        let mut ih = ImpulseHold::<N>::new();
+        let mut ih = ImpulseHold::<VecN<N>>::new();
         let sample = VecN::<N>::from_row_slice(&[3.0]);
 
         ih.hold(2.0, &sample);

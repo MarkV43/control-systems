@@ -25,7 +25,7 @@ checksum = "3995eaeebcdf32f91f980d360f78732ddc061097ab4e39991ae7a6ace9194677"
 
 [[package]]
 name = "control-systems"
-version = "0.2.0"
+version = "0.3.0"
 dependencies = [
  "nalgebra",
 ]
@@ -122,9 +122,9 @@ checksum = "8babf46d4c1c9d92deac9f7be466f76dfc4482b6452fc5024b5e8daf6ffeb3ee"
 
 [[package]]
 name = "glam"
-version = "0.30.5"
+version = "0.30.6"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "f2d1aab06663bdce00d6ca5e5ed586ec8d18033a771906c993a1e3755b368d85"
+checksum = "9d8e8d9db3feacb0bb4801b77e00c4d550f3e8d3e5303388fdfec3ff8a91f04d"
 
 [[package]]
 name = "matrixmultiply"
@@ -158,7 +158,7 @@ dependencies = [
  "glam 0.27.0",
  "glam 0.28.0",
  "glam 0.29.3",
- "glam 0.30.5",
+ "glam 0.30.6",
  "matrixmultiply",
  "nalgebra-macros",
  "num-complex",

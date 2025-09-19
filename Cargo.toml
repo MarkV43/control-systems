@@ -1,11 +1,13 @@
 [package]
 name = "control-systems"
-version = "0.2.0"
+version = "0.3.0"
 edition = "2024"
 
 [dependencies]
-nalgebra = "0.34.0"
 # quadprog = "0.0.1"
+
+[dev-dependencies]
+nalgebra = "0.34.0"
 
 [lib]
 doctest = false

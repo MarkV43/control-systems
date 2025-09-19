@@ -1,105 +1,109 @@
-use nalgebra::{Const, Storage};
-use std::cell::UnsafeCell;
+use std::{
+    cell::UnsafeCell,
+    ops::{Add, Mul},
+};
 
-use crate::utils::VecN;
-
-pub trait Holder<const N: usize> {
+pub trait Holder<Data> {
     /// Update the holder with a new input sample at the given time.
-    fn hold<S>(&mut self, time: f64, input: &VecN<N, S>)
-    where
-        S: Storage<f64, Const<N>>;
+    fn hold(&mut self, time: f64, input: &Data);
 
     /// Return the approximated input value at the given query time.
-    fn get_output(&self, time: f64) -> VecN<N>;
+    fn get_output(&self, time: f64) -> Data;
 }
 
 /// Zero-Order Hold (ZOH)
-pub struct ZeroOrderHold<const N: usize> {
+pub struct ZeroOrderHold<Data> {
     last_time: f64,
-    last_input: VecN<N>,
+    last_input: Data,
 }
 
-impl<const N: usize> ZeroOrderHold<N> {
-    pub fn new() -> Self {
+impl<Data> ZeroOrderHold<Data> {
+    pub fn new() -> Self
+    where
+        Data: Default,
+    {
         Self {
             last_time: 0.0,
-            last_input: VecN::<N>::zeros(),
+            last_input: Data::default(),
         }
     }
 }
 
-impl<const N: usize> Holder<N> for ZeroOrderHold<N> {
-    fn hold<S>(&mut self, time: f64, input: &VecN<N, S>)
-    where
-        S: Storage<f64, Const<N>>,
-    {
+impl<Data> Holder<Data> for ZeroOrderHold<Data>
+where
+    Data: Clone,
+{
+    fn hold(&mut self, time: f64, input: &Data) {
         self.last_time = time;
-        self.last_input.copy_from(input);
+        self.last_input = input.clone();
     }
 
-    fn get_output(&self, _query_time: f64) -> VecN<N> {
-        self.last_input.clone_owned()
+    fn get_output(&self, _query_time: f64) -> Data {
+        self.last_input.clone()
     }
 }
 
 /// First-Order Hold (FOH)
-pub struct FirstOrderHold<const N: usize> {
+pub struct FirstOrderHold<Data> {
     last_time: f64,
-    last_input: VecN<N>,
+    last_input: Data,
     curr_time: f64,
-    curr_input: VecN<N>,
+    curr_input: Data,
     initialized: bool,
     /// scratch buffer used to store interpolated result returned by reference.
-    output: UnsafeCell<VecN<N>>,
+    output: UnsafeCell<Data>,
 }
 
-impl<const N: usize> FirstOrderHold<N> {
-    pub fn new() -> Self {
+impl<Data> FirstOrderHold<Data> {
+    pub fn new() -> Self
+    where
+        Data: Default,
+    {
         Self {
             last_time: 0.0,
-            last_input: VecN::<N>::zeros(),
+            last_input: Data::default(),
             curr_time: 0.0,
-            curr_input: VecN::<N>::zeros(),
+            curr_input: Data::default(),
             initialized: false,
-            output: UnsafeCell::new(VecN::<N>::zeros()),
+            output: UnsafeCell::new(Data::default()),
         }
     }
 }
 
-impl<const N: usize> Holder<N> for FirstOrderHold<N> {
-    fn hold<S>(&mut self, time: f64, input: &VecN<N, S>)
-    where
-        S: Storage<f64, Const<N>>,
-    {
+impl<Data> Holder<Data> for FirstOrderHold<Data>
+where
+    Data: Clone + Mul<f64, Output = Data> + Add<Data, Output = Data>,
+{
+    fn hold(&mut self, time: f64, input: &Data) {
         if !self.initialized {
             self.curr_time = time;
-            self.curr_input.copy_from(input);
+            self.curr_input = input.clone();
             self.initialized = true;
         } else {
             self.last_time = self.curr_time;
-            self.last_input = self.curr_input.clone_owned();
+            self.last_input = self.curr_input.clone();
             self.curr_time = time;
-            self.curr_input.copy_from(input);
+            self.curr_input = input.clone();
         }
     }
 
-    fn get_output(&self, query_time: f64) -> VecN<N> {
+    fn get_output(&self, query_time: f64) -> Data {
         // not initialized -> return current input (which is zero-initialized until hold is called)
         if !self.initialized {
-            return self.curr_input.clone_owned();
+            return self.curr_input.clone();
         }
 
         // degenerate interval -> return current input
         if (self.curr_time - self.last_time).abs() < f64::EPSILON {
-            return self.curr_input.clone_owned();
+            return self.curr_input.clone();
         }
 
         // outside interval -> clamp to endpoints
         if query_time <= self.last_time {
-            return self.last_input.clone_owned();
+            return self.last_input.clone();
         }
         if query_time >= self.curr_time {
-            return self.curr_input.clone_owned();
+            return self.curr_input.clone();
         }
 
         // interpolate into scratch buffer and return reference to it.
@@ -111,58 +115,62 @@ impl<const N: usize> Holder<N> for FirstOrderHold<N> {
         unsafe {
             let out = &mut *self.output.get();
             // compute via owned temporaries then copy into out to avoid per-element loops
-            *out =
-                self.last_input.clone_owned() * (1.0 - tau) + self.curr_input.clone_owned() * tau;
-            (*self.output.get()).clone_owned()
+            *out = self.last_input.clone() * (1.0 - tau) + self.curr_input.clone() * tau;
+            (*self.output.get()).clone()
         }
     }
 }
 
 /// Impulse Hold: returns the input only at the update instant, zero otherwise.
-pub struct ImpulseHold<const N: usize> {
+pub struct ImpulseHold<Data> {
     last_time: f64,
-    last_input: VecN<N>,
-    zero: VecN<N>,
+    last_input: Data,
+    zero: Data,
 }
 
-impl<const N: usize> ImpulseHold<N> {
-    pub fn new() -> Self {
+impl<Data> ImpulseHold<Data> {
+    pub fn new() -> Self
+    where
+        Data: Default,
+    {
         Self {
             last_time: 0.0,
-            last_input: VecN::<N>::zeros(),
-            zero: VecN::<N>::zeros(),
+            last_input: Data::default(),
+            zero: Data::default(),
         }
     }
 }
 
-impl<const N: usize> Holder<N> for ImpulseHold<N> {
-    fn hold<S>(&mut self, time: f64, input: &VecN<N, S>)
-    where
-        S: Storage<f64, Const<N>>,
-    {
+impl<Data> Holder<Data> for ImpulseHold<Data>
+where
+    Data: Clone,
+{
+    fn hold(&mut self, time: f64, input: &Data) {
         self.last_time = time;
-        self.last_input.copy_from(input);
+        self.last_input = input.clone();
     }
 
-    fn get_output(&self, query_time: f64) -> VecN<N> {
+    fn get_output(&self, query_time: f64) -> Data {
         if (query_time - self.last_time).abs() < f64::EPSILON {
-            self.last_input
+            &self.last_input
         } else {
-            self.zero
+            &self.zero
         }
-        .clone_owned()
+        .clone()
     }
 }
 
 #[cfg(test)]
 mod tests {
     use super::*;
-    use crate::utils::VecN;
+    use nalgebra::{Const, Owned, Vector};
+
+    pub type VecN<const N: usize, S = Owned<f64, Const<N>, Const<1>>> = Vector<f64, Const<N>, S>;
 
     #[test]
     fn zoh_keeps_last_input() {
         const N: usize = 3;
-        let mut zoh = ZeroOrderHold::<N>::new();
+        let mut zoh = ZeroOrderHold::<VecN<N>>::new();
 
         // before any hold call -> zeros
         assert_eq!(zoh.get_output(0.0), VecN::<N>::zeros());
@@ -179,7 +187,7 @@ mod tests {
     #[test]
     fn foh_interpolates_linearly_and_clamps() {
         const N: usize = 2;
-        let mut foh = FirstOrderHold::<N>::new();
+        let mut foh = FirstOrderHold::<VecN<N>>::new();
 
         // initially uninitialized -> returns zero curr_input
         assert_eq!(foh.get_output(0.0), VecN::<N>::zeros());
@@ -206,7 +214,7 @@ mod tests {
     #[test]
     fn impulse_hold_only_at_instant() {
         const N: usize = 2;
-        let mut ih = ImpulseHold::<N>::new();
+        let mut ih = ImpulseHold::<VecN<N>>::new();
 
         let sample = VecN::<N>::from_row_slice(&[3.0, -3.0]);
         ih.hold(2.0, &sample);

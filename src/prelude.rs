@@ -4,5 +4,5 @@ pub use crate::{
     },
     discrete::{DiscreteSystem, HeldSystem, holder::*},
     system::{Sample, System, UnitSystem, cloop::ClosedLoop, gain::Gain},
-    utils::{MatN, Param, ParamWith, VecN},
+    utils::{Param, ParamWith},
 };

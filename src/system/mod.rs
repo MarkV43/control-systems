@@ -4,9 +4,7 @@ pub mod cloop;
 pub mod gain;
 pub mod series;
 
-use nalgebra::{Const, Storage};
-
-use crate::utils::{Param, VecN};
+use crate::utils::Param;
 
 /// A model for any kind of system with `INPUTS` inputs and `OUTPUTS` outputs.
 ///
@@ -17,25 +15,25 @@ use crate::utils::{Param, VecN};
 ///
 /// This way, slower system will be updated less often, while faster systems can
 /// have different frequencies, and still work without issue.
-pub trait System<const INPUTS: usize, const OUTPUTS: usize> {
+pub trait System<Input, Output> {
     /// Updates the system as if it were on instant `time` receiving inputs `input`.
     /// Returns the next instant the system will be updated at.
-    fn update<S>(&mut self, time: f64, input: &VecN<INPUTS, S>) -> f64
-    where
-        S: Storage<f64, Const<INPUTS>>;
+    fn update(&mut self, time: f64, input: &Input) -> f64;
 
     /// Returns the system's current output. Should be called after `update`ing the system.
-    fn get_output(&self, time: f64) -> VecN<OUTPUTS>;
+    fn get_output(&self, time: f64) -> Output;
 
     /// Simulates the system for a full `total_time` time units.
     fn simulate<F>(
         &mut self,
         total_time: f64,
         max_timestep: f64,
-        mut input: Param<VecN<INPUTS>>,
+        mut input: Param<Input>,
         mut callback: F,
     ) where
-        F: FnMut(Sample<INPUTS, OUTPUTS>) -> (),
+        F: FnMut(Sample<Input, Output>) -> (),
+        Input: Clone,
+        Output: Clone,
     {
         let mut time = 0.0;
 
@@ -45,8 +43,8 @@ pub trait System<const INPUTS: usize, const OUTPUTS: usize> {
 
             let sample = Sample {
                 instant: time,
-                input: (*input).clone_owned(),
-                output: self.get_output(time).clone_owned(),
+                input: (*input).clone(),
+                output: self.get_output(time).clone(),
             };
             callback(sample);
 
@@ -55,36 +53,34 @@ pub trait System<const INPUTS: usize, const OUTPUTS: usize> {
     }
 }
 
-pub struct Sample<const INPUTS: usize, const OUTPUTS: usize> {
+pub struct Sample<Input, Output> {
     pub instant: f64,
-    pub input: VecN<INPUTS>,
-    pub output: VecN<OUTPUTS>,
+    pub input: Input,
+    pub output: Output,
 }
 
 /// A simple system that directly transfer the input to the output.
 /// Its transfer function is represented by $F(s) = 1$.
-pub struct UnitSystem<const N: usize> {
-    output: VecN<N>,
+pub struct UnitSystem<Data> {
+    output: Data,
 }
 
-impl<const N: usize> System<N, N> for UnitSystem<N> {
-    fn update<S>(&mut self, _: f64, input: &VecN<N, S>) -> f64
-    where
-        S: Storage<f64, Const<N>>,
-    {
-        self.output.copy_from(input);
+impl<Data> System<Data, Data> for UnitSystem<Data> 
+where Data: Clone {
+    fn update(&mut self, _: f64, input: &Data) -> f64 {
+        self.output = input.clone();
         f64::INFINITY
     }
 
-    fn get_output(&self, _time: f64) -> VecN<N> {
-        self.output.clone_owned()
+    fn get_output(&self, _time: f64) -> Data {
+        self.output.clone()
     }
 }
 
-impl<const N: usize> Default for UnitSystem<N> {
+impl<Data> Default for UnitSystem<Data> where Data: Default {
     fn default() -> Self {
         Self {
-            output: VecN::zeros_generic(Const, Const),
+            output: Data::default(),
         }
     }
 }
@@ -93,10 +89,13 @@ impl<const N: usize> Default for UnitSystem<N> {
 mod tests {
     use super::*;
     use crate::utils::Param;
+    use nalgebra::{Const, Owned, Vector};
+
+    pub type VecN<const N: usize, S = Owned<f64, Const<N>, Const<1>>> = Vector<f64, Const<N>, S>;
 
     #[test]
     fn test_max_timestep() {
-        let mut sys = UnitSystem::default();
+        let mut sys = UnitSystem::<VecN<1>>::default();
 
         let input = Param::new(VecN::<1>::from_column_slice(&[3.]));
 

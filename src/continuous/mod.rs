@@ -1,67 +1,53 @@
-use std::ops::{Deref, DerefMut};
+use std::{
+    marker::PhantomData,
+    ops::{Deref, DerefMut},
+};
 
-use nalgebra::{Const, Storage};
-
-use crate::{continuous::integrator::Integrator, system::System, utils::VecN};
+use crate::{continuous::integrator::Integrator, system::System};
 
 pub mod integrator;
 
-pub trait ContinuousSystem<const INPUTS: usize, const STATES: usize, const OUTPUTS: usize> {
-    fn get_derivative<Ss, Si>(
-        &self,
-        time: f64,
-        state: &VecN<STATES, Ss>,
-        input: &VecN<INPUTS, Si>,
-    ) -> VecN<STATES>
-    where
-        Ss: Storage<f64, Const<STATES>>,
-        Si: Storage<f64, Const<INPUTS>>;
+pub trait ContinuousSystem<Input, State, Output> {
+    fn get_derivative(&self, time: f64, state: &State, input: &Input) -> State;
 
-    fn get_output(&self, time: f64) -> VecN<OUTPUTS>;
+    fn get_output(&self, time: f64) -> Output;
 
-    fn state(&self) -> &VecN<STATES>;
-    fn state_mut(&mut self) -> &mut VecN<STATES>;
+    fn state(&self) -> &State;
+    fn state_mut(&mut self) -> &mut State;
 
     fn max_timestep(&self) -> f64;
 
     fn with_integrator<Int>(
         self,
         integrator: Int,
-    ) -> IntegratedSystem<Self, Int, INPUTS, STATES, OUTPUTS>
+    ) -> IntegratedSystem<Self, Int, Input, State, Output>
     where
         Self: Sized,
-        Int: Integrator<Self, INPUTS, STATES, OUTPUTS>,
+        Int: Integrator<Self, Input, State, Output>,
     {
         IntegratedSystem {
             system: self,
             integrator,
             last_time: 0.0,
+            _dummy: PhantomData,
         }
     }
 }
 
-pub struct IntegratedSystem<
-    Sys,
-    Int,
-    const INPUTS: usize,
-    const STATES: usize,
-    const OUTPUTS: usize,
-> {
+pub struct IntegratedSystem<Sys, Int, Input, State, Output> {
     system: Sys,
     integrator: Int,
     last_time: f64,
+    _dummy: PhantomData<(Input, State, Output)>,
 }
 
-impl<Sys, Int, const INPUTS: usize, const STATES: usize, const OUTPUTS: usize>
-    System<INPUTS, OUTPUTS> for IntegratedSystem<Sys, Int, INPUTS, STATES, OUTPUTS>
+impl<Sys, Int, Input, State, Output> System<Input, Output>
+    for IntegratedSystem<Sys, Int, Input, State, Output>
 where
-    Sys: ContinuousSystem<INPUTS, STATES, OUTPUTS>,
-    Int: Integrator<Sys, INPUTS, STATES, OUTPUTS>,
+    Sys: ContinuousSystem<Input, State, Output>,
+    Int: Integrator<Sys, Input, State, Output>,
 {
-    fn update<S>(&mut self, time: f64, input: &VecN<INPUTS, S>) -> f64
-    where
-        S: Storage<f64, Const<INPUTS>>,
-    {
+    fn update(&mut self, time: f64, input: &Input) -> f64 {
         let max_dt = self.system.max_timestep();
         let dt = time - self.last_time;
         self.last_time = time;
@@ -71,50 +57,47 @@ where
         time + max_dt
     }
 
-    fn get_output(&self, time: f64) -> VecN<OUTPUTS> {
+    fn get_output(&self, time: f64) -> Output {
         self.system.get_output(time)
     }
 }
 
-pub struct PureIntegrator<const N: usize> {
-    state: VecN<N>,
-    output: VecN<N>,
+pub struct PureIntegrator<Data> {
+    state: Data,
+    output: Data,
     max_timestep: f64,
 }
 
-impl<const N: usize> PureIntegrator<N> {
-    pub fn new(max_timestep: f64) -> Self {
+impl<Data> PureIntegrator<Data> {
+    pub fn new(max_timestep: f64) -> Self
+    where
+        Data: Default,
+    {
         Self {
-            state: VecN::zeros(),
-            output: VecN::zeros(),
+            state: Data::default(),
+            output: Data::default(),
             max_timestep,
         }
     }
 }
 
-impl<const N: usize> ContinuousSystem<N, N, N> for PureIntegrator<N> {
-    fn get_derivative<Ss, Si>(
-        &self,
-        _time: f64,
-        _state: &VecN<N, Ss>,
-        input: &VecN<N, Si>,
-    ) -> VecN<N>
-    where
-        Ss: Storage<f64, Const<N>>,
-        Si: Storage<f64, Const<N>>,
-    {
-        input.clone_owned()
+impl<Data> ContinuousSystem<Data, Data, Data> for PureIntegrator<Data>
+where
+    Data: Clone,
+{
+    fn get_derivative(&self, _time: f64, _state: &Data, input: &Data) -> Data {
+        input.clone()
     }
 
-    fn get_output(&self, _time: f64) -> VecN<N> {
-        self.output.clone_owned()
+    fn get_output(&self, _time: f64) -> Data {
+        self.output.clone()
     }
 
-    fn state(&self) -> &VecN<N> {
+    fn state(&self) -> &Data {
         &self.state
     }
 
-    fn state_mut(&mut self) -> &mut VecN<N> {
+    fn state_mut(&mut self) -> &mut Data {
         &mut self.state
     }
 
@@ -124,29 +107,33 @@ impl<const N: usize> ContinuousSystem<N, N, N> for PureIntegrator<N> {
 }
 
 /// A simple `System` represented by $\dot{x} = u$ and $y = x$
-pub struct PureIntegratorSystem<Int, const N: usize>(
-    IntegratedSystem<PureIntegrator<N>, Int, N, N, N>,
+pub struct PureIntegratorSystem<Int, Data>(
+    IntegratedSystem<PureIntegrator<Data>, Int, Data, Data, Data>,
 );
 
-impl<Int, const N: usize> PureIntegratorSystem<Int, N> {
+impl<Int, Data> PureIntegratorSystem<Int, Data>
+where
+    Data: Default,
+{
     pub fn new(max_timestep: f64, integrator: Int) -> Self {
         Self(IntegratedSystem {
             system: PureIntegrator::new(max_timestep),
             integrator,
             last_time: 0.0,
+            _dummy: PhantomData,
         })
     }
 }
 
-impl<Int, const N: usize> Deref for PureIntegratorSystem<Int, N> {
-    type Target = IntegratedSystem<PureIntegrator<N>, Int, N, N, N>;
+impl<Int, Data> Deref for PureIntegratorSystem<Int, Data> {
+    type Target = IntegratedSystem<PureIntegrator<Data>, Int, Data, Data, Data>;
 
     fn deref(&self) -> &Self::Target {
         &self.0
     }
 }
 
-impl<Int, const N: usize> DerefMut for PureIntegratorSystem<Int, N> {
+impl<Int, Data> DerefMut for PureIntegratorSystem<Int, Data> {
     fn deref_mut(&mut self) -> &mut Self::Target {
         &mut self.0
     }
@@ -155,11 +142,14 @@ impl<Int, const N: usize> DerefMut for PureIntegratorSystem<Int, N> {
 #[cfg(test)]
 mod tests {
     use super::*;
+    use nalgebra::{Const, Owned, Vector};
+
+    pub type VecN<const N: usize, S = Owned<f64, Const<N>, Const<1>>> = Vector<f64, Const<N>, S>;
 
     #[test]
     fn test_pure_integrator_derivative_is_input() {
         const N: usize = 3;
-        let sys = PureIntegrator::<N>::new(0.1);
+        let sys = PureIntegrator::<VecN<N>>::new(0.1);
         let input = VecN::<N>::from_row_slice(&[1.0, -2.0, 3.5]);
         let state = VecN::<N>::from_row_slice(&[0.0, 0.0, 0.0]);
         let d = sys.get_derivative(0.0, &state, &input);
@@ -169,7 +159,7 @@ mod tests {
     #[test]
     fn test_pure_integrator_initial_state_and_output_are_zero() {
         const N: usize = 4;
-        let sys = PureIntegrator::<N>::new(0.2);
+        let sys = PureIntegrator::<VecN<N>>::new(0.2);
         assert_eq!(sys.state(), &VecN::<N>::zeros());
         assert_eq!(sys.get_output(0.0), VecN::<N>::zeros());
     }
@@ -177,7 +167,7 @@ mod tests {
     #[test]
     fn test_pure_integrator_state_mutation_reflects_in_state() {
         const N: usize = 2;
-        let mut sys = PureIntegrator::<N>::new(0.05);
+        let mut sys = PureIntegrator::<VecN<N>>::new(0.05);
         {
             let s = sys.state_mut();
             s.copy_from(&VecN::<N>::from_row_slice(&[1.5, -0.5]));
@@ -190,7 +180,7 @@ mod tests {
     #[test]
     fn test_pure_integrator_max_timestep() {
         const N: usize = 1;
-        let sys = PureIntegrator::<N>::new(0.123);
+        let sys = PureIntegrator::<VecN<N>>::new(0.123);
         assert_eq!(sys.max_timestep(), 0.123);
     }
 
@@ -198,7 +188,7 @@ mod tests {
     fn test_pure_integrator_system_new_initializes_inner_fields() {
         const N: usize = 3;
         // Int can be any type here since we don't call methods that require the Integrator bound
-        let sys = PureIntegratorSystem::<(), N>::new(0.3, ());
+        let sys = PureIntegratorSystem::<(), VecN<N>>::new(0.3, ());
         // Accessing private fields is allowed within this module hierarchy for tests
         assert_eq!(sys.0.last_time, 0.0);
         assert_eq!(sys.0.system.max_timestep, 0.3);
