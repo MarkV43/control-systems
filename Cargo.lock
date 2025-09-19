@@ -25,7 +25,7 @@ checksum = "3995eaeebcdf32f91f980d360f78732ddc061097ab4e39991ae7a6ace9194677"
 
 [[package]]
 name = "control-systems"
-version = "0.4.0"
+version = "0.4.1"
 dependencies = [
  "nalgebra",
 ]

@@ -68,7 +68,7 @@ mod tests {
         let input = Param::new(VecN::<1>::from_column_slice(&[3.]));
 
         let mut count = 0;
-        sys.simulate(0.4, 0.1, input, |_| count += 1);
+        sys.simulate(0.4, 0.1, input, &mut |_| count += 1);
 
         assert_eq!(count, 4);
     }

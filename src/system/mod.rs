@@ -27,14 +27,13 @@ pub trait System {
     fn get_output(&self, time: f64) -> Self::Output;
 
     /// Simulates the system for a full `total_time` time units.
-    fn simulate<F>(
+    fn simulate(
         &mut self,
         total_time: f64,
         max_timestep: f64,
         mut input: Param<Self::Input>,
-        mut callback: F,
+        callback: &mut dyn FnMut(Sample<Self::Input, Self::Output>) -> (),
     ) where
-        F: FnMut(Sample<Self::Input, Self::Output>) -> (),
         Self::Input: Clone,
         Self::Output: Clone,
     {
@@ -111,7 +110,7 @@ mod tests {
         let input = Param::new(VecN::<1>::from_column_slice(&[3.]));
 
         let mut count = 0;
-        sys.simulate(0.4, 0.1, input, |_| count += 1);
+        sys.simulate(0.4, 0.1, input, &mut |_| count += 1);
 
         assert_eq!(count, 4);
     }

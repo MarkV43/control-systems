@@ -74,7 +74,7 @@ mod tests {
         let input = Param::new(vector![1.0]);
         let mut out = vec![];
 
-        cloop.simulate(1.0, 0.2, input, |x| out.push(x.output[0]));
+        cloop.simulate(1.0, 0.2, input, &mut |x| out.push(x.output[0]));
 
         assert_eq!(out, &[2.0, 2.0, 2.0, 2.0, 2.0])
     }
